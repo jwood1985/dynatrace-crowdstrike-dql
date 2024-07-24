@@ -10,8 +10,8 @@ fetch dt.entity.process_group_instance
   | filter contains(pgi_name,"crowdstrike",caseSensitive:false)
   | lookup 
   	[
-  		fetch dt.entity.process_group_instance
-  		| fieldsAdd host_id=belongs_to[dt.entity.host]
+          fetch dt.entity.process_group_instance
+          | fieldsAdd host_id=belongs_to[dt.entity.host]
           | fieldsAdd runs
           | fieldsAdd metadata
           | fieldsAdd isDockerized
@@ -59,10 +59,10 @@ fetch dt.entity.process_group_instance
   // Add in field to check for Bitlocker-related processes
   | lookup 
 	[
-		fetch dt.entity.process_group_instance
-		| fieldsAdd host_id=belongs_to[dt.entity.host]
-        | filter contains(entity.name,"bitlocker",caseSensitive:false)
-        | fieldsAdd pgi_name = entity.name
+          fetch dt.entity.process_group_instance
+          | fieldsAdd host_id=belongs_to[dt.entity.host]
+          | filter contains(entity.name,"bitlocker",caseSensitive:false)
+          | fieldsAdd pgi_name = entity.name
 	], sourceField:process.host_id, lookupField:host_id, prefix:"bitlocker."
 
   | limit 10000
