@@ -6,38 +6,56 @@ I added in a field to detect whether a given host has **Bitlocker** on it. I als
 
 ```
 fetch dt.entity.process_group_instance
-| fieldsAdd pgi_name=entity.name
-| filter contains(pgi_name,"crowdstrike",caseSensitive:false)
-| lookup 
-	[
-		fetch dt.entity.process_group_instance
-		| fieldsAdd host_id=belongs_to[dt.entity.host]
-        | fieldsAdd runs
-        | fieldsAdd metadata
-        | fieldsAdd isDockerized
-        | fieldsAdd awsNameTag
-        | fieldsAdd pgi_id = id
-        | fieldsAdd inbound_pgi=toString(called_by)
-        | fieldsAdd outbound_pgi=toString(calls)
-        | fieldsAdd pgi_name = entity.name
-	], sourceField:pgi_name, lookupField:pgi_name, prefix:"process."
+  | fieldsAdd pgi_name=entity.name
+  | filter contains(pgi_name,"crowdstrike",caseSensitive:false)
+  | lookup 
+  	[
+  		fetch dt.entity.process_group_instance
+  		| fieldsAdd host_id=belongs_to[dt.entity.host]
+          | fieldsAdd runs
+          | fieldsAdd metadata
+          | fieldsAdd isDockerized
+          | fieldsAdd awsNameTag
+          | fieldsAdd pgi_id = id
+          | fieldsAdd inbound_pgi=toString(called_by)
+          | fieldsAdd outbound_pgi=toString(calls)
+          | fieldsAdd pgi_name = entity.name
+  	], sourceField:pgi_name, lookupField:pgi_name, prefix:"process."
+  
+  | lookup [
+          fetch dt.entity.host
+          | fieldsAdd host_name = entity.name
+          | fieldsAdd monitoringMode
+          | fieldsAdd osType
+          | fieldsAdd lifetime
+  ], sourceField:process.host_id, lookupField:id, prefix:"host."
+  
+  // Select only Windows hosts
+  | filter host.osType=="WINDOWS"
 
   | lookup [
-        fetch dt.entity.host
-        | fieldsAdd host_name = entity.name
-        | fieldsAdd monitoringMode
-        | fieldsAdd osType
-        | fieldsAdd lifetime
-  ], sourceField:process.host_id, lookupField:id, prefix:"host."
+          fetch dt.davis.events
+          | filter dt.source_entity.type == "host"
+          | filter event.group_label=="Host or monitoring unavailable"
+          | fieldsAdd endtime = event.end
+          | fieldsAdd affected_ids = toString(affected_entity_ids)
+          | parse `affected_ids`, """'[\"' LD:host_id '\"]'"""
+  ], sourceField:process.host_id, lookupField: host_id, prefix:"events."
 
-  | fieldsAdd starttime=toLong(toTimestamp(lifetime[start]))
-  | filter host.osType=="WINDOWS"
+  // Determine whether the server has been unavailable and then restarted in the last 24 hrs
+  // The "end" field in the host's lifetime should be within 5 minutes of the current time. 
+  // If not, the host has not returned from its offline status.
+  // Then look for hosts with an "unmonitored" or "unavailable" event. If that event occurred
+  // in the last 24 hrs AND the server is back online after being offline, then the host 
+  // is recently restarted.
+  | fieldsAdd delta=toDouble((toLong(toTimestamp(now()))-toLong(toTimestamp(host.lifetime[end]))))/toDouble(1000000000*60)
+  | fieldsAdd server_restarted_after_offline=if(delta<5,"YES",else:"NO")
+  | fieldsAdd recent_restart_24hr = toLong(toTimestamp(now())) - toLong(toTimestamp(events.endtime))
+  | fieldsAdd recent_restart=if((recent_restart_24hr<24*60*60*1000000000) AND (server_restarted_after_offline=="YES"),"YES",else:"NO")
+
+  // Host lifetime from the first time the server was seen in Dynatrace
+  | fieldsAdd `Lifetime (days)`=toDouble((toLong(toTimestamp(host.lifetime[end])))-toLong(toTimestamp(host.lifetime[start])))/toDouble((24*60*60*1000000000))
   
-  // Determine whether the server has been restarted in the last 24 hrs
-  | fieldsAdd recent_restart_24hr = toLong(toTimestamp(now())) - starttime
-
-  | fieldsAdd recent_restart=if(recent_restart_24hr<24*60*60*1000000000,"YES",else:"NO")
-
   // Add in field to check for Bitlocker-related processes
   | lookup 
 	[
