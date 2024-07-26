@@ -1,6 +1,11 @@
 #### About
 This is the public repository for the Dynatrace CrowdStrike dashboard. The dashboard uses DQL and the Dynatrace entity model to pinpoint Windows servers impacted by the July 19, 2024 CrowdStrike issue. Please download the JSON for the dashboard and upload it into your Dynatrace Dashboards app in the gen3 platform.
 
+#### 7/26/2024 Update
+There is now a version of the dashboard that is compatible with Dynatrace Managed. You can download the JSON for this gen2 dashboard here: Please select `Windows` as your `Operating System` and, if necessary, select your `Host` name as a dynamic filter. Thank you to Pol de Lapparent (pol.de-lapparent@dynatrace.com) for the assistance on this!
+
+![image](https://github.com/user-attachments/assets/cedc3548-ba36-4b4a-85e0-05d590fcd70f)
+
 #### 7/22/2024 Update
 I added in a field to detect whether a given host has **Bitlocker** on it. I also made a minor change to the DQL to grab the `Recently Restarted?` field more accurately.
 
